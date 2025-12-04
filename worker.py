@@ -3,6 +3,7 @@ from langchain_unstructured import UnstructuredLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from utils import load_file
+import chromadb
 from langchain_chroma import Chroma
 from langchain_community.vectorstores.utils import filter_complex_metadata
 import time
@@ -15,6 +16,7 @@ class IndexWorker:
     def __init__(self, config: SystemConfig):
         self.config = config
         self.embeddings = self._init_embeddings()
+        self.chroma_client = self._init_chroma_client()
         self.vector_store = self._init_vector_store()
 
     def _init_embeddings(self):
@@ -24,11 +26,19 @@ class IndexWorker:
             huggingfacehub_api_token=self.config.secret_config.huggingfacehub_api_token,
         )
 
+    def _init_chroma_client(self):
+        """创建 ChromaDB HttpClient"""
+        return chromadb.HttpClient(
+            host=self.config.vdb_config.chroma_host,
+            port=self.config.vdb_config.chroma_port,
+        )
+
     def _init_vector_store(self):
+        """使用 ChromaDB 服务器模式（HttpClient）"""
         return Chroma(
             collection_name=self.config.vdb_config.collection_name,
             embedding_function=self.embeddings,
-            persist_directory=self.config.vdb_config.persist_directory,
+            client=self.chroma_client,
         )
 
     async def _process_job(self, job_id: str, job_data: dict):
